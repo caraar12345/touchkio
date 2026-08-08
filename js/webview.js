@@ -761,6 +761,24 @@ const windowEvents = async () => {
         if (!WEBVIEW.window.isFullScreen()) {
           await apply(WEBVIEW.window.setFullScreen, true);
         }
+        // On Wayland the compositor can report fullscreen before it has
+        // actually resized the window, leaving it stuck at a smaller size
+        // (see leukipp/touchkio#102). Verify against the display bounds and,
+        // if it didn't take, toggle fullscreen off/on to force a reapply -
+        // the same fix that works manually via the window state buttons.
+        for (let retry = 0; retry < 3; retry++) {
+          await new Promise((r) => setTimeout(r, 300));
+          if (APP.exiting) {
+            break;
+          }
+          const bounds = WEBVIEW.window.getBounds();
+          const target = screen.getPrimaryDisplay().bounds;
+          if (bounds.width >= target.width && bounds.height >= target.height) {
+            break;
+          }
+          await apply(WEBVIEW.window.setFullScreen, false);
+          await apply(WEBVIEW.window.setFullScreen, true);
+        }
         break;
       case "Maximized":
         if (WEBVIEW.window.isFullScreen()) {
